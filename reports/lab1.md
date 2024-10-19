@@ -8,10 +8,10 @@
     - syscall_times
     - time
 
-    -   想获得`time`非常简单, 直接调用已有函数就行了.
-    -   `status`简单, 在impl TaskManager里加一个函数, 获取当前运行中任务的状态(??).<br>
+-   想获得`time`非常简单, 直接调用已有函数就行了.
+-   `status`也简单, 在impl TaskManager里加一个函数, 获取当前运行中任务的状态(??).<br>
 再在外面加pub函数返回全局变量TASK_MANAGER调用刚才新增的函数返回的值.<br>
-    -   `syscall_times`要多写点东西, 仔细一看它是一个500个u32的数组(是不是太浪费了QAQ).<br>
+-   `syscall_times`要多写点东西, 仔细一看它是一个500个u32的数组(是不是太浪费了QAQ).<br>
 不管了, 那我给每一个任务控制块都加一个这样的数组. 然后再给TaskManager加一个函数, 传一个数字进去(系统调用ID), <br>它就会给当前运行中的任务的任务控制块里的数组在以系统调用ID为下标的位置加一. <br>最后我在syscall函数那里使用这个函数, 每次syscall被调用, 就以syscall_id为参数调用这个函数, 这样就记录下了任务系统调用的次数.<br>最最后再像`status`那里加函数让外界获取这些信息即可.
 
 - 最后再在sys_task_info壳子那里调用刚才的函数, 填上TaskInfo即可.
@@ -20,7 +20,19 @@
 ### 问答题
 
 - 1.
-    - 11
+    - ch2b_bad_address:
+        - 报错:[kernel] PageFault in application, bad addr = 0x0, bad instruction = 0x804003a4, kernel killed it.<br>
+        这个程序试图在0x00那里写东西, 然后看起来操作系统抱怨这个程序bad addr后就把它杀掉了.
+    - ch2_bad_instructions:
+        - 报错:[kernel] IllegalInstruction in application, kernel killed it.<br>
+        这个程序直接运行sret, 这是S级用来回到U级的, 内核直接报错非法指令.
+    - ch2_bad_register:
+        - 报错:[kernel] IllegalInstruction in application, kernel killed it.<br>
+        这个程序是想把sstatus寄存器的信息读出来, 但被报错非法指令了, 我不是太明白.:
+    - sbi及其版本:
+    ```bash
+    [rustsbi] RustSBI version 0.2.2, adapting to RISC-V SBI v1.0.0
+    ```
 
 - 2.
     - 1.
@@ -56,3 +68,16 @@
     - 7.
         call trap_handler
         
+- 荣誉准则
+
+    在完成本次实验的过程（含此前学习的过程）中，我曾分别与 以下各位 就（与本次实验相关的）以下方面做过交流，还在代码中对应的位置以注释形式记录了具体的交流对象及内容：
+
+        无
+
+    此外，我也参考了 以下资料 ，还在代码中对应的位置以注释形式记录了具体的参考来源及内容：
+
+        无
+
+3. 我独立完成了本次实验除以上方面之外的所有工作，包括代码与文档。 我清楚地知道，从以上方面获得的信息在一定程度上降低了实验难度，可能会影响起评分。
+
+4. 我从未使用过他人的代码，不管是原封不动地复制，还是经过了某些等价转换。 我未曾也不会向他人（含此后各届同学）复制或公开我的实验代码，我有义务妥善保管好它们。 我提交至本实验的评测系统的代码，均无意于破坏或妨碍任何计算机系统的正常运转。 我清楚地知道，以上情况均为本课程纪律所禁止，若违反，对应的实验成绩将按“-100”分计。
