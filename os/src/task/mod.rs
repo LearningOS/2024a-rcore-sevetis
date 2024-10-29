@@ -153,6 +153,32 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// Record syscall
+    fn record_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        for (id, cnt) in inner.tasks[cur].syscall_rec.iter_mut() {
+            if *id == syscall_id {
+                *cnt += 1;
+                return;
+            }
+        }
+        inner.tasks[cur].syscall_rec.push((syscall_id, 1));
+    }
+
+    fn current_status(&self) -> TaskStatus {
+        let inner = self.inner.exclusive_access();
+        let cur = &inner.tasks[*&inner.current_task];
+        cur.task_status
+    }
+
+    fn syscall_times(&self) -> Vec<(usize, u32)> {
+        let inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].syscall_rec.clone()
+    }
+
 }
 
 /// Run the first task in task list.
@@ -201,4 +227,19 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Record syscall
+pub fn record_syscall(syscall_id: usize) {
+    TASK_MANAGER.record_syscall(syscall_id);
+}
+
+/// Get current task status
+pub fn current_status() -> TaskStatus {
+    TASK_MANAGER.current_status()
+}
+
+/// Get current task syscall times
+pub fn syscall_times() -> Vec<(usize, u32)> {
+    TASK_MANAGER.syscall_times()
 }

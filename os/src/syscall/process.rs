@@ -1,10 +1,18 @@
 //! Process management syscalls
 use crate::{
-    config::MAX_SYSCALL_NUM,
-    task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+    config::MAX_SYSCALL_NUM, mm::translated_byte_buffer, task::{
+        change_program_brk,
+        current_status,
+        current_user_token,
+        exit_current_and_run_next, suspend_current_and_run_next, syscall_times, TaskStatus
     },
+    timer::{
+        get_time_ms,
+        get_time_us
+    }
 };
+
+use alloc::vec;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -43,21 +51,79 @@ pub fn sys_yield() -> isize {
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    -1
+    let mut buffers = translated_byte_buffer(
+        current_user_token(),
+        _ts as *const u8,
+        core::mem::size_of::<TimeVal>()
+    );
+    if buffers.len() > 1 {
+        panic!("unimplemented!");
+    }
+
+    let buffer = &mut buffers[0];
+    let us = get_time_us();
+    let time_val = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+
+    let ptr = &time_val as *const TimeVal as *const u8;
+    let mut bytes = vec![0; buffer.len()];
+    for i in 0..buffer.len() {
+        bytes[i] = unsafe { *ptr.add(i) };
+    }
+    buffer.copy_from_slice(&bytes[..]);
+
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+    trace!("kernel: sys_task_info");
+    let mut buffers = translated_byte_buffer(
+        current_user_token(),
+        _ti as *const u8,
+        core::mem::size_of::<TaskInfo>()
+    );
+
+    if buffers.len() > 1 {
+        panic!("unimplemented!");
+    }
+
+    let mut syscts = [0; MAX_SYSCALL_NUM];
+    for (id, cnt) in syscall_times().iter() {
+        syscts[*id] = *cnt;
+    }
+    let info = TaskInfo {
+        status: current_status(),
+        syscall_times: syscts,
+        time: get_time_ms(),
+    };
+
+    let buffer = &mut buffers[0];
+    let ptr = &info as *const TaskInfo as *const u8;
+    let mut bytes = vec![0; buffer.len()];
+    for i in 0..buffer.len() {
+        bytes[i] = unsafe { *ptr.add(i) };
+    }
+    buffer.copy_from_slice(&bytes[..]);
+
+    0
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_mmap(_start: usize, _len: usize, port: usize) -> isize {
+    trace!("kernel: sys_mmap");
+    if port & 0x7 == 0 || port & !(0x7) != 0 {
+        return -1;
+    }
+    let (r, w, x) = (port & 1, port & 2, port & 4);
+
+
+
+    0
 }
 
 // YOUR JOB: Implement munmap.
