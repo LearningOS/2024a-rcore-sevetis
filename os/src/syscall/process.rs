@@ -4,7 +4,7 @@ use alloc::sync::Arc;
 use crate::{
     config::MAX_SYSCALL_NUM,
     loader::get_app_data_by_name,
-    mm::{translated_byte_buffer, translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission, VirtAddr},
     task::{
         add_task, current_status, current_syscall_times, current_task, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
     },
@@ -185,21 +185,43 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if port & 0x7 == 0 || port & !(0x7) != 0 {
+        return -1;
+    }
+
+    let mut mperm = MapPermission::U;
+    if port & 0x1 == 0x1 { mperm |= MapPermission::R; }
+    if port & 0x2 == 0x2 { mperm |= MapPermission::W; }
+    if port & 0x4 == 0x4 { mperm |= MapPermission::X; }
+
+    let st_va = VirtAddr::from(start);
+    if !st_va.aligned() {
+        return -1;
+    }
+    let _ed_va = VirtAddr::from(start + len);
+
+    0
+    // current_task().unwrap().mmap(st_va, ed_va, mperm)
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let st_va = VirtAddr::from(start);
+    if !st_va.aligned() {
+        return -1;
+    }
+    let _ed_va = VirtAddr::from(start + len);
+    // current_task().unwrap().munmap(st_va, ed_va)
+    0
 }
 
 /// change data segment size

@@ -68,9 +68,6 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
-
-    /// Syscall times
-    pub syscalltimes: Vec<(usize, u32)>,
 }
 
 impl TaskControlBlockInner {
@@ -121,7 +118,6 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
-                    syscalltimes: Vec::new(),
                 })
             },
         };
@@ -195,7 +191,6 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
-                    syscalltimes: Vec::new(),
                 })
             },
         });
@@ -247,18 +242,6 @@ impl TaskControlBlock {
         let inner = self.inner.exclusive_access();
         inner.get_status()
     }
-
-    /// record syscall
-    pub fn record_syscall(&mut self, id: usize) {
-        let mut inner = self.inner.exclusive_access();
-        let syscalltimes = &mut inner.syscalltimes;
-        if let Some((_key, cnt)) = syscalltimes.iter_mut().find(|(key, _)| { *key == id }) {
-            *cnt += 1;
-        } else {
-            syscalltimes.push((id, 1));
-        }
-    }
-
 
 }
 
