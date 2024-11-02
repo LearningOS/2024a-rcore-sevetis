@@ -155,6 +155,7 @@ impl PageTable {
         8usize << 60 | self.root_ppn.0
     }
 
+    /// check if a vpn can be mmapped
     pub fn is_avail_vpn(&self, vpn: VirtPageNum) -> bool {
         if let Some(pte) = self.find_pte(vpn) {
             !pte.is_valid()
@@ -163,6 +164,7 @@ impl PageTable {
         }
     }
 
+    /// check if a vpn can be munmaped
     pub fn is_valid_vpn(&self, vpn: VirtPageNum) -> bool {
         if let Some(pte) = self.find_pte(vpn) {
             pte.is_valid()

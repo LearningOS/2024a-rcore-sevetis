@@ -1,7 +1,7 @@
 //! Process management syscalls
 use crate::{
     config::MAX_SYSCALL_NUM,
-    mm::{translated_byte_buffer, MapPermission, PageTable, VirtAddr},
+    mm::{translated_byte_buffer, MapPermission, VirtAddr},
     task::{
         change_program_brk, current_status, current_user_token, exit_current_and_run_next,
         mmap, munmap,

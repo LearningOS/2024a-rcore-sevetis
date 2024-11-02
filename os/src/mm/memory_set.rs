@@ -272,21 +272,25 @@ impl MemorySet {
         }
     }
 
+    /// mmap
     pub fn map(&mut self, start: VirtAddr, end: VirtAddr, mperm: MapPermission) {
         let mut ma = MapArea::new(start, end, MapType::Framed, mperm);
         ma.map(&mut self.page_table);
     }
 
+    /// munmap
     pub fn munmap(&mut self, start: VirtAddr, end: VirtAddr) {
         let mut ma = MapArea::new(start, end, MapType::Framed, MapPermission::empty());
         ma.unmap(&mut self.page_table);
     }
 
+    /// check before mmap
     pub fn is_avail(&self, start: VirtAddr, end: VirtAddr) -> bool {
         let area = MapArea::new(start, end, MapType::Framed, MapPermission::U);
         area.is_avail(&self.page_table)
     }
 
+    /// check before munmap
     pub fn is_valid(&self, start: VirtAddr, end: VirtAddr) -> bool {
         let area = MapArea::new(start, end, MapType::Framed, MapPermission::U);
         area.is_valid(&self.page_table)
@@ -416,7 +420,9 @@ impl MapArea {
 #[derive(Copy, Clone, PartialEq, Debug)]
 /// map type for memory set: identical or framed
 pub enum MapType {
+    /// identical
     Identical,
+    /// framed
     Framed,
 }
 
