@@ -15,6 +15,9 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{
+    self, MapArea, MapPermission, MapType, PageTable, VirtAddr
+};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -179,6 +182,34 @@ impl TaskManager {
         inner.tasks[cur].syscall_rec.clone()
     }
 
+    /// Map VirtAddr to allocated pyshic space
+    fn mmap(&self, st_va: VirtAddr, ed_va: VirtAddr, mperm: MapPermission) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+
+        let mm_set = &mut inner.tasks[cur].memory_set;
+        if !mm_set.is_avail(st_va, ed_va) {
+            return -1;
+        } else {
+            mm_set.map(st_va, ed_va, mperm)
+            // mm_set.insert_framed_area(st_va, ed_va, mperm);
+        }
+        0
+    }
+
+    fn unmap(&self, st_va: VirtAddr, ed_va: VirtAddr) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+
+        let mm_set = &mut inner.tasks[cur].memory_set;
+        if !mm_set.is_valid(st_va, ed_va) {
+            return -1;
+        } else {
+            mm_set.munmap(st_va, ed_va);
+        }
+        0
+    }
+
 }
 
 /// Run the first task in task list.
@@ -242,4 +273,14 @@ pub fn current_status() -> TaskStatus {
 /// Get current task syscall times
 pub fn syscall_times() -> Vec<(usize, u32)> {
     TASK_MANAGER.syscall_times()
+}
+
+/// Alloc some physic memory and map to virtual address
+pub fn mmap(st_va: VirtAddr, ed_va: VirtAddr, mperm: MapPermission) -> isize {
+    TASK_MANAGER.mmap(st_va, ed_va, mperm)
+}
+
+/// Unmap
+pub fn munmap(st_va: VirtAddr, ed_va: VirtAddr) -> isize {
+    TASK_MANAGER.unmap(st_va, ed_va)
 }

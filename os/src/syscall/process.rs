@@ -1,15 +1,16 @@
 //! Process management syscalls
 use crate::{
-    config::MAX_SYSCALL_NUM, mm::translated_byte_buffer, task::{
-        change_program_brk,
-        current_status,
-        current_user_token,
-        exit_current_and_run_next, suspend_current_and_run_next, syscall_times, TaskStatus
+    config::MAX_SYSCALL_NUM,
+    mm::{translated_byte_buffer, MapPermission, PageTable, VirtAddr},
+    task::{
+        change_program_brk, current_status, current_user_token, exit_current_and_run_next,
+        mmap, munmap,
+        suspend_current_and_run_next, syscall_times, TaskStatus
     },
     timer::{
         get_time_ms,
         get_time_us
-    }
+    },
 };
 
 use alloc::vec;
@@ -56,7 +57,7 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         _ts as *const u8,
         core::mem::size_of::<TimeVal>()
     );
-    if buffers.len() > 1 {
+    if buffers.len() > 1 { // It wont be splitted by two page XD
         panic!("unimplemented!");
     }
 
@@ -88,7 +89,7 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         core::mem::size_of::<TaskInfo>()
     );
 
-    if buffers.len() > 1 {
+    if buffers.len() > 1 { // XD
         panic!("unimplemented!");
     }
 
@@ -114,22 +115,34 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!("kernel: sys_mmap");
     if port & 0x7 == 0 || port & !(0x7) != 0 {
         return -1;
     }
-    let (r, w, x) = (port & 1, port & 2, port & 4);
 
+    let mut mperm = MapPermission::U;
+    if port & 0x1 == 0x1 { mperm |= MapPermission::R; }
+    if port & 0x2 == 0x2 { mperm |= MapPermission::W; }
+    if port & 0x4 == 0x4 { mperm |= MapPermission::X; }
 
-
-    0
+    let st_va = VirtAddr::from(start);
+    if !st_va.aligned() {
+        return -1;
+    }
+    let ed_va = VirtAddr::from(start + len);
+    mmap(st_va, ed_va, mperm)
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    trace!("kernel: sys_munmap");
+    let st_va = VirtAddr::from(start);
+    if !st_va.aligned() {
+        return -1;
+    }
+    let ed_va = VirtAddr::from(start + len);
+    munmap(st_va, ed_va)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {
