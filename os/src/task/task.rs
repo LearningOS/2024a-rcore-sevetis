@@ -1,9 +1,9 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
 use crate::fs::{File, Stdin, Stdout};
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::config::{BIG_STRIDE, INIT_PRIO, TRAP_CONTEXT_BASE};
+use crate::mm::{MemorySet, PhysPageNum, VirtAddr, MapPermission, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
@@ -71,6 +71,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// stride
+    pub stride: usize,
+
+    /// priority
+    pub prio: isize,
 }
 
 impl TaskControlBlockInner {
@@ -135,6 +141,8 @@ impl TaskControlBlock {
                     ],
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: 0,
+                    prio: INIT_PRIO,
                 })
             },
         };
@@ -216,6 +224,8 @@ impl TaskControlBlock {
                     fd_table: new_fd_table,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    stride: 0,
+                    prio: parent_inner.prio,
                 })
             },
         });
@@ -229,6 +239,58 @@ impl TaskControlBlock {
         task_control_block
         // **** release child PCB
         // ---- release parent PCB
+    }
+
+    /// spawn
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        let mut parent_inner = self.inner_exclusive_access();
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT_BASE).into())
+            .unwrap()
+            .ppn();
+        let pid_hadle = pid_alloc();
+        let kernel_stack = kstack_alloc();
+        let kernel_stack_top = kernel_stack.get_top();
+        let task_control_block = Arc::new(TaskControlBlock {
+            pid: pid_hadle,
+            kernel_stack,
+            inner: unsafe {
+                UPSafeCell::new(TaskControlBlockInner {
+                    trap_cx_ppn,
+                    base_size: user_sp,
+                    task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+                    task_status: TaskStatus::Ready,
+                    memory_set,
+                    parent: Some(Arc::downgrade(self)),
+                    children: Vec::new(),
+                    exit_code: 0,
+                    fd_table: vec![
+                        Some(Arc::new(Stdin)),
+                        Some(Arc::new(Stdout)),
+                        Some(Arc::new(Stdout)),
+                    ],
+                    heap_bottom: user_sp,
+                    program_brk: user_sp,
+                    stride: 0,
+                    prio: parent_inner.prio,
+                })
+            }
+        });
+
+        let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
+        *trap_cx = TrapContext::app_init_context(
+            entry_point, 
+            user_sp, 
+            KERNEL_SPACE.exclusive_access().token(), 
+            self.kernel_stack.get_top(), 
+            trap_handler as usize
+        );
+
+        parent_inner.children.push(task_control_block.clone());
+        let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
+        trap_cx.kernel_sp = kernel_stack_top;
+        task_control_block
     }
 
     /// get pid of process
@@ -260,6 +322,60 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// get status
+    pub fn getstatus(&self) -> TaskStatus {
+        let inner = self.inner.exclusive_access();
+        inner.get_status()
+    }
+
+    /// mmap
+    pub fn mmap(&self, st_va: VirtAddr, ed_va: VirtAddr, mperm: MapPermission) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        let mm_set = &mut inner.memory_set;
+        if !(*mm_set).is_avail(st_va, ed_va) {
+            -1
+        } else {
+            (*mm_set).map(st_va, ed_va, mperm);
+            0
+        }
+    }
+
+    /// munmap
+    pub fn munmap(&self, st_va: VirtAddr, ed_va: VirtAddr) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        let mm_set = &mut inner.memory_set;
+        if !(*mm_set).is_valid(st_va, ed_va) {
+            -1
+        } else {
+            (*mm_set).munmap(st_va, ed_va);
+            0
+        }
+    }
+
+    /// set priority
+    pub fn set_prio(&self, p: isize) {
+        let mut inner = self.inner_exclusive_access();
+        inner.prio = p;
+    }
+
+    /// get priority
+    pub fn get_prio(&self) -> isize {
+        let inner = self.inner_exclusive_access();
+        inner.prio
+    }
+
+    /// get stride
+    pub fn get_stride(&self) -> usize {
+        let inner = self.inner_exclusive_access();
+        inner.stride
+    }
+
+    /// add stride
+    pub fn stride(&self) {
+        let mut inner = self.inner_exclusive_access();
+        inner.stride += BIG_STRIDE / inner.prio as usize;
     }
 }
 

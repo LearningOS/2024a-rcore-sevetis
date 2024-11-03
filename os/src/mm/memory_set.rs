@@ -318,6 +318,31 @@ impl MemorySet {
             false
         }
     }
+
+    /// map
+    pub fn map(&mut self, start: VirtAddr, end: VirtAddr, mperm: MapPermission) {
+        let mut ma = MapArea::new(start, end, MapType::Framed, mperm);
+        ma.map(&mut self.page_table);
+    }
+
+    /// unmap
+    pub fn munmap(&mut self, start: VirtAddr, end: VirtAddr) {
+        let mut ma = MapArea::new(start, end, MapType::Framed, MapPermission::empty());
+        ma.unmap(&mut self.page_table);
+    }
+
+    /// map check
+    pub fn is_avail(&self, start: VirtAddr, end: VirtAddr) -> bool {
+        let area = MapArea::new(start, end, MapType::Framed, MapPermission::U);
+        area.is_avail(&self.page_table)
+    }
+
+    /// unmap check
+    pub fn is_valid(&self, start: VirtAddr, end: VirtAddr) -> bool {
+        let area = MapArea::new(start, end, MapType::Framed, MapPermission::U);
+        area.is_valid(&self.page_table)
+    }
+
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
@@ -417,6 +442,24 @@ impl MapArea {
             }
             current_vpn.step();
         }
+    }
+
+    pub fn is_avail(&self, page_table: &PageTable) -> bool {
+        for vpn in self.vpn_range {
+            if !page_table.is_avail_vpn(vpn) {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn is_valid(&self, page_table: &PageTable) -> bool {
+        for vpn in self.vpn_range {
+            if !page_table.is_valid_vpn(vpn) {
+                return false;
+            }
+        }
+        true
     }
 }
 

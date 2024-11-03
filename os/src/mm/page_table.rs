@@ -156,6 +156,24 @@ impl PageTable {
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }
+
+    /// check if a vpn can be mapped
+    pub fn is_avail_vpn(&self, vpn: VirtPageNum) -> bool {
+        if let Some(pte) = self.find_pte(vpn) {
+            !pte.is_valid()
+        } else {
+            true
+        }
+    }
+
+    /// check if a vpn can be unmapped
+    pub fn is_valid_vpn(&self, vpn: VirtPageNum) -> bool {
+        if let Some(pte) = self.find_pte(vpn) {
+            pte.is_valid()
+        } else {
+            false
+        }
+    }
 }
 
 /// Translate&Copy a ptr[u8] array with LENGTH len to a mutable u8 Vec through page table

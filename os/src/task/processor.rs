@@ -5,7 +5,10 @@
 //! and the replacement and transfer of control flow of different applications are executed.
 
 use super::__switch;
-use super::{fetch_task, TaskStatus};
+use super::{
+    stride_fetch,
+    TaskStatus
+};
 use super::{TaskContext, TaskControlBlock};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
@@ -55,7 +58,7 @@ lazy_static! {
 pub fn run_tasks() {
     loop {
         let mut processor = PROCESSOR.exclusive_access();
-        if let Some(task) = fetch_task() {
+        if let Some(task) = stride_fetch() {
             let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
             // access coming task TCB exclusively
             let mut task_inner = task.inner_exclusive_access();
@@ -84,6 +87,18 @@ pub fn take_current_task() -> Option<Arc<TaskControlBlock>> {
 /// Get a copy of the current task
 pub fn current_task() -> Option<Arc<TaskControlBlock>> {
     PROCESSOR.exclusive_access().current()
+}
+
+/// Get current task status
+pub fn current_status() -> TaskStatus {
+    let task = current_task().unwrap();
+    task.getstatus()
+}
+
+/// Get current task pid
+pub fn current_pid() -> usize {
+    let task = current_task().unwrap();
+    task.getpid()
 }
 
 /// Get the current user token(addr of page table)
