@@ -6,12 +6,8 @@ use core::arch::asm;
 
 const SBI_SET_TIMER: usize = 0x54494D45;
 const SBI_CONSOLE_PUTCHAR: usize = 1;
-<<<<<<< HEAD
 const SBI_CONSOLE_GETCHAR: usize = 2;
-const SBI_SHUTDOWN: usize = 8;
-=======
 const SBI_SHUTDOWN: usize = 0x53525354;
->>>>>>> 6c48867 (os: sbi: changed constants to adapt qemu9)
 
 /// general sbi call
 #[inline(always)]
