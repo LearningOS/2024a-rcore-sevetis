@@ -6,9 +6,9 @@ use crate::{
     loader::get_app_data_by_name,
     mm::{translated_byte_buffer, translated_refmut, translated_str},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
-    }, timer::get_time_ms,
+        add_task, current_status, current_syscall_times, current_task, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
+    },
+    timer::get_time_ms,
 };
 
 #[repr(C)]
@@ -157,7 +157,31 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    let length = core::mem::size_of::<TaskInfo>();
+    let mut buffers = translated_byte_buffer(
+        current_user_token(),
+        _ti as *const u8,
+        length,
+    );
+
+    if buffers.len() > 1 {
+        panic!("unimplement!");
+    }
+    let buffer = &mut buffers[0];
+
+    let info = TaskInfo {
+        status: current_status(),
+        syscall_times: current_syscall_times(),
+        time: get_time_ms(),
+    };
+
+    let ptr = &info as *const TaskInfo as *const u8;
+    for i in 0..length {
+        buffer[i] = unsafe { *ptr.add(i) };
+    }
+
+    0
 }
 
 /// YOUR JOB: Implement mmap.

@@ -86,6 +86,18 @@ pub fn current_task() -> Option<Arc<TaskControlBlock>> {
     PROCESSOR.exclusive_access().current()
 }
 
+/// Get current task status
+pub fn current_status() -> TaskStatus {
+    let task = current_task().unwrap();
+    task.getstatus()
+}
+
+/// Get current task pid
+pub fn current_pid() -> usize {
+    let task = current_task().unwrap();
+    task.getpid()
+}
+
 /// Get the current user token(addr of page table)
 pub fn current_user_token() -> usize {
     let task = current_task().unwrap();
