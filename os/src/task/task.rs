@@ -2,7 +2,7 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
@@ -68,6 +68,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// Stride for scheduling
+    pub stride: usize,
+
+    /// Priority of the task
+    pub prio: isize,
 }
 
 impl TaskControlBlockInner {
@@ -118,6 +124,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: 0,
+                    prio: 0,
                 })
             },
         };
@@ -191,6 +199,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    stride: 0,
+                    prio: 0,
                 })
             },
         });
@@ -243,6 +253,32 @@ impl TaskControlBlock {
         inner.get_status()
     }
 
+    pub fn mmap(&self, st_va: VirtAddr, ed_va: VirtAddr, mperm: MapPermission) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        let mm_set = &mut inner.memory_set;
+        if !(*mm_set).is_avail(st_va, ed_va) {
+            -1
+        } else {
+            (*mm_set).map(st_va, ed_va, mperm);
+            0
+        }
+    }
+
+    pub fn munmap(&self, st_va: VirtAddr, ed_va: VirtAddr) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        let mm_set = &mut inner.memory_set;
+        if !(*mm_set).is_valid(st_va, ed_va) {
+            -1
+        } else {
+            (*mm_set).munmap(st_va, ed_va);
+            0
+        }
+    }
+
+    pub fn set_prio(&self, p: isize) {
+        let mut inner = self.inner_exclusive_access();
+        inner.prio = p;
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]

@@ -8,7 +8,7 @@ use crate::{
     task::{
         add_task, current_status, current_syscall_times, current_task, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus
     },
-    timer::get_time_ms,
+    timer::{get_time_us, get_time_ms},
 };
 
 #[repr(C)]
@@ -135,10 +135,10 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     }
     let buffer = &mut buffers[0];
 
-    let ms = get_time_ms();
+    let ms = get_time_us();
     let time_val = TimeVal {
-        sec: ms / 100_000_000,
-        usec: ms % 100_000_000,
+        sec: ms / 1_000_000,
+        usec: ms % 1_000_000,
     };
 
     let ptr = &time_val as *const TimeVal as *const u8;
@@ -203,10 +203,9 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     if !st_va.aligned() {
         return -1;
     }
-    let _ed_va = VirtAddr::from(start + len);
+    let ed_va = VirtAddr::from(start + len);
 
-    0
-    // current_task().unwrap().mmap(st_va, ed_va, mperm)
+    current_task().unwrap().mmap(st_va, ed_va, mperm)
 }
 
 /// YOUR JOB: Implement munmap.
@@ -219,9 +218,9 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
     if !st_va.aligned() {
         return -1;
     }
-    let _ed_va = VirtAddr::from(start + len);
-    // current_task().unwrap().munmap(st_va, ed_va)
-    0
+    let ed_va = VirtAddr::from(start + len);
+
+    current_task().unwrap().munmap(st_va, ed_va)
 }
 
 /// change data segment size
@@ -236,19 +235,37 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
+pub fn sys_spawn(path: *const u8) -> isize {
     trace!(
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let current_task = current_task().unwrap();
+    let new_task = current_task.fork();
+    let new_pid = new_task.pid.0;
+    let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+    trap_cx.x[10] = 0;
+
+    let path = translated_str(current_user_token(), path);
+    if let Some(data) = get_app_data_by_name(&path) {
+        new_task.exec(data);
+        add_task(new_task);
+        new_pid as isize
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
+pub fn sys_set_priority(prio: isize) -> isize {
     trace!(
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if prio >= 2 {
+        current_task().unwrap().set_prio(prio);
+        prio
+    } else {
+        -1
+    }
 }
