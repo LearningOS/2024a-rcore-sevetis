@@ -32,7 +32,7 @@ impl PartialOrd for Stride {
                 return Some(Ordering::Less)
             }
         }
-        None
+        None 
     }
 }
 
