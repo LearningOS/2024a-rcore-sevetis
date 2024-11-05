@@ -4,8 +4,45 @@
 - 实现sys_spawn. 这个还是挺简单的. 本来试图用fork和exec加在一起来实现spawn, 结果不行(fork + exec != spawn). 只好弄脏手了, 去看了`TaskControlBlock`里fork和exec内部的代码, 拆开来再加在一起搞了一个spawn函数, 系统调用里调用一下, 就过了(^_^)
 
 - stride调度算法
+        - 这个也不难, 照着任务描述加就可以了. 在`TaskManager`那里加多一个`stride_fetch`来进行stride调度, 替换掉`run_tasks`里的`fetch`即可.
 
 ### 问答题
+- 实际不是p1执行. 因为stride是由8位无符号整形存的, p2的stride加上10后发生溢出, 变成了5, 反而变小了.
+
+- 严格证明太麻烦了, 简单大概说说好了(要做不完rCore了QAQ). 在stride调度中. 每一轮调度, 被选中的进程P的stride(`STRIDE_MIN`)都会被加上`BigStride/P.prio`, 而 $P.prio >= 2$, 故P的stride增幅永远小于`BigStride/2`. 当有进程的stride落后时, 它的stride就会被增加一下, 最大和最小永远拉不开`BigStride/2`
+
+- 补全`partial_cmp`:
+```Rust
+use core::cmp::Ordering;
+
+struct Stride(u64);
+
+impl PartialOrd for Stride {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.0 > other.0 {
+            if self.0 - other.0 > u64::Max / 2 {
+                return Some(Ordering::Less);
+            } else {
+                return Some(Ordering::Greater);
+            }
+        } else {
+            if other.0 - self.0 > u64::Max / 2 {
+                return Some(Ordering::Greater);
+            } else {
+                return Some(Ordering::Less)
+            }
+        }
+        None
+    }
+}
+
+impl PartialEq for Stride {
+    fn eq(&self, other: &Self) -> bool {
+        false
+    }
+}
+```
+
 
 
 
