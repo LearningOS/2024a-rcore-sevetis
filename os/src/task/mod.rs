@@ -25,7 +25,7 @@ mod sysrec;
 use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
 use lazy_static::*;
-pub use manager::{fetch_task, TaskManager};
+pub use manager::{fetch_task, stride_fetch, TaskManager};
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 

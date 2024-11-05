@@ -1,7 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
-use super::TaskContext;
+use super::{suspend_current_and_run_next, TaskContext};
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{BIG_STRIDE, INIT_PRIO, TRAP_CONTEXT_BASE};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -125,7 +125,7 @@ impl TaskControlBlock {
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     stride: 0,
-                    prio: 0,
+                    prio: INIT_PRIO,
                 })
             },
         };
@@ -200,7 +200,7 @@ impl TaskControlBlock {
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
                     stride: 0,
-                    prio: 0,
+                    prio: parent_inner.prio,
                 })
             },
         });
@@ -242,7 +242,7 @@ impl TaskControlBlock {
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     stride: 0,
-                    prio: 0,
+                    prio: parent_inner.prio,
                 })
             }
         });
@@ -324,6 +324,21 @@ impl TaskControlBlock {
     pub fn set_prio(&self, p: isize) {
         let mut inner = self.inner_exclusive_access();
         inner.prio = p;
+    }
+
+    pub fn get_prio(&self) -> isize {
+        let inner = self.inner_exclusive_access();
+        inner.prio
+    }
+
+    pub fn get_stride(&self) -> usize {
+        let inner = self.inner_exclusive_access();
+        inner.stride
+    }
+
+    pub fn stride(&self) {
+        let mut inner = self.inner_exclusive_access();
+        inner.stride += BIG_STRIDE / inner.prio as usize;
     }
 }
 

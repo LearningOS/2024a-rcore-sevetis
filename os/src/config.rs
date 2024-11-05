@@ -25,4 +25,6 @@ pub const CLOCK_FREQ: usize = 12500000;
 pub const MEMORY_END: usize = 0x88000000;
 
 /// the big stride for strdie algorithm
-pub const BIG_STRIDE: usize = 0x3f3f3f3f;
+pub const BIG_STRIDE: usize = 0xffffffff;
+/// the init priority
+pub const INIT_PRIO: isize = 16;
