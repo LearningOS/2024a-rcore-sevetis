@@ -126,6 +126,7 @@ lazy_static! {
     pub static ref BLOCK_CACHE_MANAGER: Mutex<BlockCacheManager> =
         Mutex::new(BlockCacheManager::new());
 }
+
 /// Get the block cache corresponding to the given block id and block device
 pub fn get_block_cache(
     block_id: usize,
@@ -135,6 +136,7 @@ pub fn get_block_cache(
         .lock()
         .get_block_cache(block_id, block_device)
 }
+
 /// Sync all block cache to block device
 pub fn block_cache_sync_all() {
     let manager = BLOCK_CACHE_MANAGER.lock();

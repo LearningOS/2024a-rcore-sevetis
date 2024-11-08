@@ -6,7 +6,7 @@ use core::fmt::{Debug, Formatter, Result};
 /// Magic number for sanity check
 const EFS_MAGIC: u32 = 0x3b800001;
 /// The max number of direct inodes
-const INODE_DIRECT_COUNT: usize = 28;
+const INODE_DIRECT_COUNT: usize = 27;
 /// The max length of inode name
 const NAME_LENGTH_LIMIT: usize = 27;
 /// The max number of indirect1 inodes
@@ -85,6 +85,7 @@ pub struct DiskInode {
     pub direct: [u32; INODE_DIRECT_COUNT],
     pub indirect1: u32,
     pub indirect2: u32,
+    pub nlink_num: u32,
     type_: DiskInodeType,
 }
 
@@ -96,6 +97,7 @@ impl DiskInode {
         self.direct.iter_mut().for_each(|v| *v = 0);
         self.indirect1 = 0;
         self.indirect2 = 0;
+        self.nlink_num = 1;
         self.type_ = type_;
     }
     /// Whether this inode is a directory
@@ -131,11 +133,13 @@ impl DiskInode {
         }
         total as u32
     }
+
     /// Get the number of data blocks that have to be allocated given the new size of data
     pub fn blocks_num_needed(&self, new_size: u32) -> u32 {
         assert!(new_size >= self.size);
         Self::total_blocks(new_size) - Self::total_blocks(self.size)
     }
+
     /// Get id of block given inner id
     pub fn get_block_id(&self, inner_id: u32, block_device: &Arc<dyn BlockDevice>) -> u32 {
         let inner_id = inner_id as usize;
@@ -161,6 +165,7 @@ impl DiskInode {
                 })
         }
     }
+
     /// Inncrease the size of current disk inode
     pub fn increase_size(
         &mut self,
@@ -308,6 +313,7 @@ impl DiskInode {
         self.indirect2 = 0;
         v
     }
+
     /// Read data from current disk inode
     pub fn read_at(
         &self,
@@ -348,6 +354,7 @@ impl DiskInode {
         }
         read_size
     }
+
     /// Write data into current disk inode
     /// size must be adjusted properly beforehand
     pub fn write_at(
@@ -387,7 +394,9 @@ impl DiskInode {
         }
         write_size
     }
+
 }
+
 /// A directory entry
 #[repr(C)]
 pub struct DirEntry {
