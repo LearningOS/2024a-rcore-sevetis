@@ -88,7 +88,6 @@ impl Inode {
         if let Some(old_inode_id) = self.read_disk_inode(|disk_inode| {
             self.find_inode_id(old_name, disk_inode)
         }) {
-            let ret = old_inode_id;
             let mut fs = self.fs.lock();
             self.modify_disk_inode(|disk_inode| {
                 let file_count = (disk_inode.size as usize) / DIRENT_SZ;
@@ -111,8 +110,7 @@ impl Inode {
                 self.block_device.clone(), 
                 old_inode_id as usize,
             ).update_nl(true);
-
-            ret as isize
+            0
         } else {
             -1
         }
