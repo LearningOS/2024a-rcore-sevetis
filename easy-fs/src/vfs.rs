@@ -101,7 +101,7 @@ impl Inode {
                     &self.block_device
                 );
             });
-            block_cache_sync_all();
+            // block_cache_sync_all();
 
             let (block_id, block_offset) = fs.get_disk_inode_pos(old_inode_id);
             Self::new(
@@ -126,7 +126,7 @@ impl Inode {
                 disk_inode.nlink_num -= 1;
             }
         });
-        block_cache_sync_all();
+        // block_cache_sync_all();
     }
 
     /// unlink
@@ -145,7 +145,7 @@ impl Inode {
                     let inode_id = dirent.inode_id();
                     dirent = DirEntry::empty();
                     disk_inode.write_at(DIRENT_SZ * i, dirent.as_bytes(), &self.block_device);
-                    block_cache_sync_all();
+                    // block_cache_sync_all();
 
                     let (block_id, block_offset) = fs.get_disk_inode_pos(inode_id);
                     let inode = Self::new(
@@ -156,7 +156,7 @@ impl Inode {
                         inode_id as usize,
                     );
                     if inode.nlink_num() == 1 {
-                        inode.clear();
+                        // inode.clear();
                     } else {
                         inode.update_nl(false);
                     }
