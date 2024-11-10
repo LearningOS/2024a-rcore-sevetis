@@ -175,10 +175,10 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
     let buffer = UserBuffer::new(translated_byte_buffer(
         current_user_token(),
-        ts as *const _ as *const u8,
+        ts as *const u8,
         core::mem::size_of::<TimeVal>())
     );
-    let ptr = &val as *const _ as *const u8;
+    let ptr = &val as *const TimeVal as *const u8;
     let mut idx = 0;
     for b in buffer.into_iter() {
         unsafe { *b = *ptr.add(idx) };

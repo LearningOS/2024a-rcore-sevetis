@@ -1,4 +1,4 @@
-use crate::sync::{deadlock, enable, print, update_alloc, update_avail, update_need, Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore, DEAD};
+use crate::sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore, DEAD};
 use crate::task::{block_current_and_run_next, current_process, current_task, current_tid};
 use crate::timer::{add_timer, get_time_ms};
 use alloc::sync::Arc;
@@ -13,6 +13,7 @@ pub fn sys_sleep(ms: usize) -> isize {
     let expire_ms = get_time_ms() + ms;
     let task = current_task().unwrap();
     add_timer(expire_ms, task);
+    println!("??");
     block_current_and_run_next();
     0
 }
@@ -52,35 +53,29 @@ pub fn sys_mutex_create(blocking: bool) -> isize {
         process_inner.mutex_list.push(mutex);
         res_id = process_inner.mutex_list.len() - 1;
     }
-    update_avail(res_id, 1);
-    print();
+    process_inner.detector.add_res(1);
     res_id as isize
 }
 
 /// mutex lock syscall
 pub fn sys_mutex_lock(mutex_id: usize) -> isize {
+    let tid = current_tid();
     trace!(
         "kernel:pid[{}] tid[{}] sys_mutex_lock",
         current_task().unwrap().process.upgrade().unwrap().getpid(),
-        current_tid()
+        tid
     );
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();
+    let mut process_inner = process.inner_exclusive_access();
+    if process_inner.detector.detect(tid, mutex_id) {
+        return DEAD;
+    }
+    process_inner.detector.alloc_res(tid, mutex_id);
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     drop(process_inner);
     drop(process);
-
-    let tid = current_tid();
-    if mutex.is_locked() {
-        update_need(tid, mutex_id, 1);
-        if deadlock() {
-            update_need(tid, mutex_id, -1);
-            return DEAD;
-        }
-    } else {
-        update_alloc(tid, mutex_id, 1);
-    }
     mutex.lock();
+    // current_process().inner_exclusive_access().detector.alloc_res(tid, mutex_id);
     0
 }
 
@@ -99,11 +94,11 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
         tid
     );
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();
+    let mut process_inner = process.inner_exclusive_access();
+    process_inner.detector.dealloc_res(current_tid(), mutex_id);
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     drop(process_inner);
     drop(process);
-    update_alloc(tid, mutex_id, -1);
     mutex.unlock();
     0
 }
@@ -138,7 +133,7 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
             .push(Some(Arc::new(Semaphore::new(res_count))));
         process_inner.semaphore_list.len() - 1
     };
-    update_avail(id, res_count as isize);
+    process_inner.detector.add_res(res_count);
     id as isize
 }
 
@@ -151,10 +146,10 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
         tid
     );
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();
+    let mut process_inner = process.inner_exclusive_access();
+    process_inner.detector.dealloc_res(current_tid(), sem_id);
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
     drop(process_inner);
-    update_alloc(tid, sem_id, -1);
     sem.up();
     0
 }
@@ -167,21 +162,16 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         current_task().unwrap().process.upgrade().unwrap().getpid(),
         tid
     );
-    if deadlock() { return DEAD }
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();
+    let mut process_inner = process.inner_exclusive_access();
+    if process_inner.detector.detect(tid, sem_id) {
+        return DEAD;
+    }
+    process_inner.detector.alloc_res(tid, sem_id);
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
     drop(process_inner);
-    if !sem.can_down() {
-        update_need(tid, sem_id, 1);
-        if deadlock() {
-            update_need(tid, sem_id, -1);
-            return DEAD;
-        }
-    } else {
-        update_alloc(tid, sem_id, 1);
-    }
     sem.down();
+    // current_process().inner_exclusive_access().detector.alloc_res(tid, sem_id);
     0
 }
 
@@ -266,10 +256,14 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
 /// YOUR JOB: Implement deadlock detection, but might not all in this syscall
 pub fn sys_enable_deadlock_detect(enabled: usize) -> isize {
     trace!("kernel: sys_enable_deadlock_detect");
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
     if enabled == 1 {
-        enable(true)
+        process_inner.detector.enable(true);
+        let size = process_inner.tasks.len();
+        process_inner.detector.init(size);
     } else if enabled == 0 {
-        enable(false);
+        process_inner.detector.enable(false);
     } else {
         return -1;
     }

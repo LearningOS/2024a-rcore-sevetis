@@ -1,9 +1,10 @@
-use crate::sync::UPSafeCell;
 use alloc::vec::Vec;
-use lazy_static::*;
+use alloc::vec;
 
 /// DEADLOCK
 pub const DEAD: isize = -0xDEAD;
+
+/// detector
 pub struct DeadLockDetector {
     avail: Vec<usize>,
     alloc: Vec<Vec<usize>>,
@@ -12,7 +13,8 @@ pub struct DeadLockDetector {
 }
 
 impl DeadLockDetector {
-    fn new() -> Self {
+    /// create
+    pub fn new() -> Self {
         Self {
             avail: Vec::new(),
             alloc: Vec::new(),
@@ -21,143 +23,89 @@ impl DeadLockDetector {
         }
     }
 
+    /// init
+    pub fn init(&mut self, size: usize) {
+        self.avail = Vec::new();
+        self.alloc = vec![Vec::new(); size];
+        self.need = vec![Vec::new(); size];
+    }
+
+    /// doc
     pub fn print(&self) {
         println!("avail: {:?}", self.avail);
         println!("alloc: {:?}", self.alloc);
         println!("need: {:?}", self.need);
     }
 
-    pub fn deadlock(&self) -> bool {
+    /// detect deadlock
+    pub fn detect(&mut self, tid: usize, res_id: usize) -> bool {
+        while self.need.len() <= tid {
+            self.need.push(vec![0; self.avail.len()]);
+        }
+        self.need[tid][res_id] += 1;
+        if self.deadlock() {
+            self.need[tid][res_id] -= 1;
+            return true;
+        }
+        false
+    }
+
+    fn deadlock(&self) -> bool {
         if !self.enabled { return false }
         let mut work = self.avail.clone();
-        let mut finish = Vec::new();
-        for _ in 0..self.alloc.len() {
-            finish.push(false);
-        }
+        let mut finish = vec![false; self.alloc.len()];
         
         loop {
-            let unfinished: Vec<usize> = finish.iter()
-                .enumerate()
-                .filter(|&x| *x.1 == false)
-                .map(|x| x.0)
-                .collect();
-            if unfinished.is_empty() {
-                return false;
-            }
-
             let mut flag = false;
-            for i in unfinished.iter() {
+            for i in 0..self.alloc.len() {
+                if finish[i] { continue; }
                 let mut statisfied = true;
-                for (j, ne) in self.need[*i].iter().enumerate() {
-                    if *ne > work[j] { 
+                for j in 0..self.need[i].len() {
+                    if self.need[i][j] > work[j] {
                         statisfied = false;
                         break;
                     }
                 }
                 if statisfied {
-                    flag = true;
-                    finish[*i] = true;
-                    for (j, val) in work.iter_mut().enumerate() {
-                        *val += self.alloc[*i][j];
+                    for j in 0..self.need[i].len() {
+                        work[j] += self.alloc[i][j];
                     }
+                    finish[i] = true;
+                    flag = true;
                 }
             }
-
             if !flag {
-                return true;
+                break;
             }
         }
+        !finish.iter().all(|&x| x)
     }
 
+    /// turn on/off
     pub fn enable(&mut self, enable: bool) {
         self.enabled = enable;
     }
 
-    pub fn alloc(&mut self, pid: usize, resource_id: usize, val: isize) {
-        while self.alloc.len() <= pid {
-            let mut v = Vec::with_capacity(self.avail.len());
-            for _ in 0..self.avail.len() {
-                v.push(0);
-            }
-            self.alloc.push(v);
-        }
-        while self.need.len() <= pid {
-            let mut v = Vec::with_capacity(self.avail.len());
-            for _ in 0..self.avail.len() {
-                v.push(0);
-            }
-            self.need.push(v);
-        }
-        self.alloc[pid][resource_id] = (self.alloc[pid][resource_id] as isize + val) as usize;
-        self.avail[resource_id] = (self.avail[resource_id] as isize - val) as usize;
-        if val >= self.need[pid][resource_id] as isize {
-            self.need[pid][resource_id] = 0;
-        } else {
-            self.need[pid][resource_id] -= val as usize;
-        }
+    /// add resource
+    pub fn add_res(&mut self, val: usize) {
+        self.avail.push(val);
+        self.alloc.iter_mut().for_each(|v| v.push(0));
+        self.need.iter_mut().for_each(|v| v.push(0));
     }
 
-    pub fn update_need(&mut self, pid: usize, resource_id: usize, val: isize) {
-        while self.need.len() <= pid {
-            let mut v = Vec::with_capacity(self.avail.len());
-            for _ in 0..self.avail.len() {
-                v.push(0);
-            }
-            self.need.push(v);
+    /// allocate resource
+    pub fn alloc_res(&mut self, tid: usize, res_id: usize) {
+        self.need[tid][res_id] -= 1;
+        while self.alloc.len() <= tid {
+            self.alloc.push(vec![0; self.avail.len()]);
         }
-        self.need[pid][resource_id] = (self.need[pid][resource_id] as isize + val) as usize;
+        self.alloc[tid][res_id] += 1;
+        self.avail[res_id] -= 1;
     }
 
-    pub fn update_avail(&mut self, res_id: usize, val: isize) {
-        while self.avail.len() <= res_id {
-            self.avail.push(0);
-        }
-        for ne in self.need.iter_mut() {
-            while ne.len() <= res_id {
-                ne.push(0);
-            }
-        }
-        for al in self.alloc.iter_mut() {
-            while al.len() <= res_id {
-                al.push(0);
-            }
-        }
-        self.avail[res_id] = (self.avail[res_id] as isize + val) as usize;
+    /// deallocate resource
+    pub fn dealloc_res(&mut self, tid: usize, res_id: usize) {
+        self.alloc[tid][res_id] -= 1;
+        self.avail[res_id] += 1;
     }
-}
-
-lazy_static! {
-    pub static ref DETECTOR: UPSafeCell<DeadLockDetector> = unsafe {
-        UPSafeCell::new(DeadLockDetector::new())
-    };
-}
-
-/// deadlock detect
-pub fn deadlock() -> bool {
-    DETECTOR.exclusive_access().deadlock()
-}
-
-/// enable detector
-pub fn enable(enable: bool) {
-    DETECTOR.exclusive_access().enable(enable);
-}
-
-/// alloc resource
-pub fn update_alloc(pid: usize, res_id: usize, val: isize) {
-    DETECTOR.exclusive_access().alloc(pid, res_id, val);
-}
-
-/// update need
-pub fn update_need(pid: usize, res_id: usize, val: isize) {
-    DETECTOR.exclusive_access().update_need(pid, res_id, val);
-}
-
-/// update avial
-pub fn update_avail(res_id: usize, val: isize) {
-    DETECTOR.exclusive_access().update_avail(res_id, val);
-}
-
-/// print
-pub fn print() {
-    DETECTOR.exclusive_access().print();
 }

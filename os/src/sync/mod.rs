@@ -11,5 +11,4 @@ pub use mutex::{Mutex, MutexBlocking, MutexSpin};
 pub use semaphore::Semaphore;
 pub use up::UPSafeCell;
 pub use deadlock_detector::{
-    deadlock, DEAD, enable, update_alloc, update_need, update_avail, print
-};
+    DeadLockDetector, DEAD};
