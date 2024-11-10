@@ -52,4 +52,9 @@ impl Semaphore {
             block_current_and_run_next();
         }
     }
+
+    /// can down
+    pub fn can_down(&self) -> bool {
+        self.inner.exclusive_access().count > 0
+    }
 }

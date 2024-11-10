@@ -89,6 +89,11 @@ pub fn current_process() -> Arc<ProcessControlBlock> {
     current_task().unwrap().process.upgrade().unwrap()
 }
 
+/// get current task id
+pub fn current_tid() -> usize {
+    current_task().unwrap().inner_exclusive_access().res.as_ref().unwrap().tid
+}
+
 /// Get the current user token(addr of page table)
 pub fn current_user_token() -> usize {
     let task = current_task().unwrap();

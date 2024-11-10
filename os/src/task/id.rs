@@ -135,6 +135,7 @@ pub struct TaskUserRes {
     /// process belongs to
     pub process: Weak<ProcessControlBlock>,
 }
+
 /// Return the bottom addr (low addr) of the trap context for a task
 fn trap_cx_bottom_from_tid(tid: usize) -> usize {
     TRAP_CONTEXT_BASE - tid * PAGE_SIZE
@@ -162,6 +163,7 @@ impl TaskUserRes {
         }
         task_user_res
     }
+
     /// Allocate user resource for a task
     pub fn alloc_user_res(&self) {
         let process = self.process.upgrade().unwrap();
@@ -183,6 +185,7 @@ impl TaskUserRes {
             MapPermission::R | MapPermission::W,
         );
     }
+
     /// Deallocate user resource for a task
     fn dealloc_user_res(&self) {
         // dealloc tid
@@ -210,16 +213,19 @@ impl TaskUserRes {
             .inner_exclusive_access()
             .alloc_tid();
     }
+
     /// dealloc task id
     pub fn dealloc_tid(&self) {
         let process = self.process.upgrade().unwrap();
         let mut process_inner = process.inner_exclusive_access();
         process_inner.dealloc_tid(self.tid);
     }
+
     /// The bottom usr vaddr (low addr) of the trap context for a task with tid
     pub fn trap_cx_user_va(&self) -> usize {
         trap_cx_bottom_from_tid(self.tid)
     }
+
     /// The physical page number(ppn) of the trap context for a task with tid
     pub fn trap_cx_ppn(&self) -> PhysPageNum {
         let process = self.process.upgrade().unwrap();
@@ -231,10 +237,12 @@ impl TaskUserRes {
             .unwrap()
             .ppn()
     }
+
     /// the bottom addr (low addr) of the user stack for a task
     pub fn ustack_base(&self) -> usize {
         self.ustack_base
     }
+
     /// the top addr (high addr) of the user stack for a task
     pub fn ustack_top(&self) -> usize {
         ustack_bottom_from_tid(self.ustack_base, self.tid) + USER_STACK_SIZE
