@@ -1,21 +1,16 @@
 use crate::{
     mm::kernel_token,
-    task::{add_task, current_task, TaskControlBlock},
+    task::{add_task, current_task, current_tid, TaskControlBlock},
     trap::{trap_handler, TrapContext},
 };
 use alloc::sync::Arc;
 /// thread create syscall
 pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
+    let tid = current_tid();
     trace!(
         "kernel:pid[{}] tid[{}] sys_thread_create",
         current_task().unwrap().process.upgrade().unwrap().getpid(),
-        current_task()
-            .unwrap()
-            .inner_exclusive_access()
-            .res
-            .as_ref()
-            .unwrap()
-            .tid
+        tid
     );
     let task = current_task().unwrap();
     let process = task.process.upgrade().unwrap();
@@ -41,6 +36,7 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
         tasks.push(None);
     }
     tasks[new_task_tid] = Some(Arc::clone(&new_task));
+    process_inner.detector.add_task();
     let new_task_trap_cx = new_task_inner.get_trap_cx();
     *new_task_trap_cx = TrapContext::app_init_context(
         entry,

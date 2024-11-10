@@ -93,6 +93,13 @@ impl DeadLockDetector {
         self.need.iter_mut().for_each(|v| v.push(0));
     }
 
+    /// add task
+    pub fn add_task(&mut self) {
+        let length = self.avail.len();
+        self.alloc.push(vec![0; length]);
+        self.need.push(vec![0; length]);
+    }
+
     /// allocate resource
     pub fn alloc_res(&mut self, tid: usize, res_id: usize) {
         self.need[tid][res_id] -= 1;
