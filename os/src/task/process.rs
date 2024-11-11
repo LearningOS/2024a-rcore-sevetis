@@ -44,9 +44,9 @@ pub struct ProcessControlBlockInner {
     /// task resource allocator
     pub task_res_allocator: RecycleAllocator,
     /// mutex list
-    pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
+    pub mutex_list: Vec<Arc<dyn Mutex>>,
     /// semaphore list
-    pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
+    pub semaphore_list: Vec<Arc<Semaphore>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
     /// deadlock detetor
